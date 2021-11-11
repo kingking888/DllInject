@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 #include"Windows.h"
 #include"stdio.h"
 #include"tlhelp32.h"
@@ -19,6 +18,19 @@ const WCHAR* GetFileFullPath(const WCHAR* FileName);
 
 //////////////////////////////////////////
 
+
+BOOL MyLoadLibrary(const WCHAR DllName[MAX_PATH])
+{
+	typedef void (*func)(LPCWSTR);
+	HMODULE hDll = LoadLibrary(DllName);
+	if (hDll == NULL)
+	{
+		return FALSE;
+	}
+	func f = (func)GetProcAddress(hDll, "MyMessageBox");
+	f(L"CAONIMA");
+	return TRUE;
+}
 
 BOOL RemoteThreadDllInject(const WCHAR* ProcessName, const WCHAR* dllpath)
 {
@@ -54,7 +66,34 @@ BOOL RemoteThreadDllInject(const WCHAR* ProcessName, const WCHAR* dllpath)
 	return TRUE;
 }
 
+BOOL RemoteThreadDllFree(const WCHAR* ProcessName, const WCHAR* dllName)
+{
+	//LPCWSTR dllpath = L"C:\\Users\\Administrator\\Desktop\\TFHack.dll";
+	RemoteThreadDllInject(ProcessName, GetFileFullPath(dllName));
+	DWORD dwPid = GetProcessIdByProcessName(ProcessName);
+	//CString str;
+	//str.Format(L"%d", dwPid);
+	//MessageBox(0,str,L"PID",0);
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwPid);
+	if (hProcess == NULL)
+	{
+		printf("OpenProcess Fail:%x\n", GetLastError());
+		return FALSE;
+	}
+	DWORD dwHandle = (DWORD)GetProcessModuleBaseAddress(dwPid, dllName);
 
+	HANDLE hRemoteThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)FreeLibrary, (LPVOID)dwHandle, 0, NULL);
+	if (hRemoteThread == 0)
+	{
+		printf("CreateRemoteThread()  ERROR_CODE=%x\n", GetLastError());
+		CloseHandle(hProcess);
+		return FALSE;
+	}
+	WaitForSingleObject(hRemoteThread, 2000);
+	CloseHandle(hProcess);
+	CloseHandle(hRemoteThread);
+	return TRUE;
+}
 
 DWORD GetProcessModuleBaseAddress(DWORD dwPid, const WCHAR ModuleName[MAX_MODULE_NAME32 + 1])
 {
@@ -120,6 +159,76 @@ DWORD GetProcessIdByProcessName(const WCHAR ProcessName[MAX_PATH])
 	return FALSE;
 }
 
+
+/*
+// 根据PID获取所有的相应线程ID
+BOOL GetAllThreadIdByProcessId(DWORD dwProcessId, DWORD** ppThreadId, DWORD* pdwThreadIdLength)
+{
+	DWORD* pThreadId = NULL;
+	DWORD dwThreadIdLength = 0;
+	DWORD dwBufferLength = 1000;
+	THREADENTRY32 te32 = { 0 };
+	HANDLE hSnapshot = NULL;
+	BOOL bRet = TRUE;
+
+	do
+	{
+		// 申请内存
+		pThreadId = new DWORD[dwBufferLength];
+		if (NULL == pThreadId)
+		{
+			printf("new");
+			bRet = FALSE;
+			break;
+		}
+		::RtlZeroMemory(pThreadId, (dwBufferLength * sizeof(DWORD)));
+
+		// 获取线程快照
+		::RtlZeroMemory(&te32, sizeof(te32));
+		te32.dwSize = sizeof(te32);
+		hSnapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+		if (NULL == hSnapshot)
+		{
+			printf("CreateToolhelp32Snapshot");
+			bRet = FALSE;
+			break;
+		}
+
+		// 获取第一条线程快照信息
+		bRet = ::Thread32First(hSnapshot, &te32);
+		while (bRet)
+		{
+			// 获取进程对应的线程ID
+			if (te32.th32OwnerProcessID == dwProcessId)
+			{
+				pThreadId[dwThreadIdLength] = te32.th32ThreadID;
+				dwThreadIdLength++;
+			}
+
+			// 遍历下一个线程快照信息
+			bRet = ::Thread32Next(hSnapshot, &te32);
+		}
+
+		// 返回
+		*ppThreadId = pThreadId;
+		*pdwThreadIdLength = dwThreadIdLength;
+		bRet = TRUE;
+
+	} while (FALSE);
+
+	if (FALSE == bRet)
+	{
+		if (pThreadId)
+		{
+			delete[]pThreadId;
+			pThreadId = NULL;
+		}
+	}
+	return bRet;
+}
+
+*/
+
 BOOL FetchProcess()
 {
 	DWORD dwProcessID[0x500] = { 0 };  //开始的预先分配较大的缓冲区，用来存放进程ID
@@ -175,6 +284,15 @@ const WCHAR* GetFileFullPath(const WCHAR* FileName)
 	}
 	return NULL;
 }
+
+
+
+//void DebugMsg(const WCHAR* a, int b, int c)
+//{
+//	CString str;
+//	str.Format(a, b, c);
+//	AfxMessageBox(str);
+//}
 
 void SetDebugConsole(PCWSTR ConsoleName)
 {

@@ -1,7 +1,11 @@
 #pragma once
 #include <Windows.h>
 #include <stdio.h>
+#include <TlHelp32.h>
 //#include <ntdef.h>
+
+//#define _WIN64
+
 
 class CDllInject
 {

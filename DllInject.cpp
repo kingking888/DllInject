@@ -1,5 +1,6 @@
 #include "DllInject.h"
 
+
 #define DEBUG 1
 
 BOOL CDllInject::CreateRemoteThreadInject(DWORD dwPid,const char* pszFilePath)
@@ -75,9 +76,10 @@ BOOL CDllInject::CreateRemoteThreadInject(DWORD dwPid,const char* pszFilePath)
 		CloseHandle(hProcess);
 		return FALSE;
 	}
+	WaitForSingleObject(hRemoteThread, 1000);
 
-	CloseHandle(hProcess);
 	CloseHandle(hRemoteThread);
+	CloseHandle(hProcess);
 
 	return TRUE;
 }
@@ -229,6 +231,7 @@ BOOL CDllInject::ZwCreateThreadExInject(DWORD dwPid, const char* pszFilePath)
 		return FALSE;
 	}
 
+
 	NTSTATUS ntStatus = ZwCreateThreadEx(&hRemoteThread, PROCESS_ALL_ACCESS, NULL, hProcess, (LPTHREAD_START_ROUTINE)pLoadLibarayAddress, pRemoteBuffer, FALSE, 0, 0, 0, NULL);
 	if (ntStatus < 0)
 	{
@@ -240,18 +243,157 @@ BOOL CDllInject::ZwCreateThreadExInject(DWORD dwPid, const char* pszFilePath)
 		return FALSE;
 	}
 
-	CloseHandle(hProcess);
+	WaitForSingleObject(hRemoteThread, 1000);
+
 	CloseHandle(hRemoteThread);
+	CloseHandle(hProcess);
 
 	return TRUE;
-
-	return 0;
 }
 
-BOOL CDllInject::QueueUserAPCInject(DWORD CurrentWindowThreadId, const char* pszFilePath)
+BOOL GetAllThreadIdByProcessId(DWORD dwProcessId, DWORD** ppThreadId, DWORD* pdwThreadIdLength)
 {
+	DWORD* pThreadId = NULL;
+	DWORD dwThreadIdLength = 0;
+	DWORD dwBufferLength = 1000;
+	THREADENTRY32 te32 = { 0 };
+	HANDLE hSnapshot = NULL;
+	BOOL bRet = TRUE;
 
-	return 0;
+	do
+	{
+		// 申请内存
+		pThreadId = new DWORD[dwBufferLength];
+		if (NULL == pThreadId)
+		{
+			printf("new");
+			bRet = FALSE;
+			break;
+		}
+		::RtlZeroMemory(pThreadId, (dwBufferLength * sizeof(DWORD)));
+
+		// 获取线程快照
+		::RtlZeroMemory(&te32, sizeof(te32));
+		te32.dwSize = sizeof(te32);
+		hSnapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+		if (NULL == hSnapshot)
+		{
+			printf("CreateToolhelp32Snapshot");
+			bRet = FALSE;
+			break;
+		}
+
+		// 获取第一条线程快照信息
+		bRet = ::Thread32First(hSnapshot, &te32);
+		while (bRet)
+		{
+			// 获取进程对应的线程ID
+			if (te32.th32OwnerProcessID == dwProcessId)
+			{
+				pThreadId[dwThreadIdLength] = te32.th32ThreadID;
+				dwThreadIdLength++;
+			}
+
+			// 遍历下一个线程快照信息
+			bRet = ::Thread32Next(hSnapshot, &te32);
+		}
+
+		// 返回
+		*ppThreadId = pThreadId;
+		*pdwThreadIdLength = dwThreadIdLength;
+		bRet = TRUE;
+
+	} while (FALSE);
+
+	if (FALSE == bRet)
+	{
+		if (pThreadId)
+		{
+			delete[]pThreadId;
+			pThreadId = NULL;
+		}
+	}
+	return bRet;
+}
+
+BOOL CDllInject::QueueUserAPCInject(DWORD dwPid, const char* pszFilePath)
+{
+	BOOL bRet = FALSE;
+	DWORD* pThreadId = NULL;
+	DWORD dwThreadIdLength = 0;
+	HANDLE hProcess = NULL, hThread = NULL;
+	PVOID pBaseAddress = NULL;
+	PVOID pLoadLibraryAFunc = NULL;
+	SIZE_T dwRet = 0, dwDllPathLen = 1 + ::strlen(pszFilePath);
+	DWORD i = 0;
+
+	bRet = GetAllThreadIdByProcessId(dwPid, &pThreadId, &dwThreadIdLength);
+	if (FALSE == bRet)
+	{
+		return FALSE;
+	}
+	hProcess = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwPid);
+	if (NULL == hProcess)
+	{
+		printf("OpenProcess");
+		return FALSE;
+	}
+
+	// 在注入进程空间申请内存
+	pBaseAddress = ::VirtualAllocEx(hProcess, NULL, dwDllPathLen, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	if (pBaseAddress == NULL)
+	{
+		printf("VirtualAllocEx");
+		return FALSE;
+	}
+	// 向申请的空间中写入DLL路径数据 
+	WriteProcessMemory(hProcess, pBaseAddress, pszFilePath, dwDllPathLen, &dwRet);
+	if (dwRet != dwDllPathLen)
+	{
+		printf("WriteProcessMemory");
+		return FALSE;
+	}
+
+	// 获取 LoadLibrary 地址
+	HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
+	if (!hKernel32)
+	{
+		return FALSE;
+	}
+	pLoadLibraryAFunc = ::GetProcAddress(hKernel32, "LoadLibraryA");
+	if (NULL == pLoadLibraryAFunc)
+	{
+		printf("GetProcessAddress");
+		return FALSE;
+	}
+
+	// 遍历线程, 插入APC
+	for (i = 0; i < dwThreadIdLength; i++)
+	{
+		// 打开线程
+		hThread = ::OpenThread(THREAD_ALL_ACCESS, FALSE, pThreadId[i]);
+		if (hThread)
+		{
+			// 插入APC
+			::QueueUserAPC((PAPCFUNC)pLoadLibraryAFunc, hThread, (ULONG_PTR)pBaseAddress);
+			// 关闭线程句柄
+			::CloseHandle(hThread);
+			hThread = NULL;
+		}
+	}
+
+	if (hProcess)
+	{
+		::CloseHandle(hProcess);
+		hProcess = NULL;
+	}
+	if (pThreadId)
+	{
+		delete[]pThreadId;
+		pThreadId = NULL;
+	}
+
+	return TRUE;
 }
 
 
@@ -297,7 +439,7 @@ BOOL CDllInject::SetWindowsHookExInject(DWORD CurrentWindowThreadId, const char*
 	if (!UnhookWindowsHookEx(g_hHook))
 	{
 		if (DEBUG)
-		{
+{
 			printf("UnHook Fail:%x\n", GetLastError());
 			system("pause");
 		}
