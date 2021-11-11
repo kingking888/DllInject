@@ -229,6 +229,7 @@ BOOL CDllInject::ZwCreateThreadExInject(DWORD dwPid, const char* pszFilePath)
 		return FALSE;
 	}
 
+
 	NTSTATUS ntStatus = ZwCreateThreadEx(&hRemoteThread, PROCESS_ALL_ACCESS, NULL, hProcess, (LPTHREAD_START_ROUTINE)pLoadLibarayAddress, pRemoteBuffer, FALSE, 0, 0, 0, NULL);
 	if (ntStatus < 0)
 	{
@@ -239,6 +240,7 @@ BOOL CDllInject::ZwCreateThreadExInject(DWORD dwPid, const char* pszFilePath)
 		CloseHandle(hProcess);
 		return FALSE;
 	}
+
 
 	CloseHandle(hProcess);
 	CloseHandle(hRemoteThread);
@@ -297,7 +299,7 @@ BOOL CDllInject::SetWindowsHookExInject(DWORD CurrentWindowThreadId, const char*
 	if (!UnhookWindowsHookEx(g_hHook))
 	{
 		if (DEBUG)
-		{
+{
 			printf("UnHook Fail:%x\n", GetLastError());
 			system("pause");
 		}

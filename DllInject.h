@@ -3,6 +3,9 @@
 #include <stdio.h>
 //#include <ntdef.h>
 
+//#define _WIN64
+
+
 class CDllInject
 {
 public:

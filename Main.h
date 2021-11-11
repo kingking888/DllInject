@@ -20,6 +20,19 @@ const WCHAR* GetFileFullPath(const WCHAR* FileName);
 //////////////////////////////////////////
 
 
+BOOL MyLoadLibrary(const WCHAR DllName[MAX_PATH])
+{
+	typedef void (*func)(LPCWSTR);
+	HMODULE hDll = LoadLibrary(DllName);
+	if (hDll == NULL)
+	{
+		return FALSE;
+	}
+	func f = (func)GetProcAddress(hDll, "MyMessageBox");
+	f(L"CAONIMA");
+	return TRUE;
+}
+
 BOOL RemoteThreadDllInject(const WCHAR* ProcessName, const WCHAR* dllpath)
 {
 	//LPCWSTR dllpath = L"C:\\Users\\Administrator\\Desktop\\TFHack.dll";
@@ -54,7 +67,34 @@ BOOL RemoteThreadDllInject(const WCHAR* ProcessName, const WCHAR* dllpath)
 	return TRUE;
 }
 
+BOOL RemoteThreadDllFree(const WCHAR* ProcessName, const WCHAR* dllName)
+{
+	//LPCWSTR dllpath = L"C:\\Users\\Administrator\\Desktop\\TFHack.dll";
+	RemoteThreadDllInject(ProcessName, GetFileFullPath(dllName));
+	DWORD dwPid = GetProcessIdByProcessName(ProcessName);
+	//CString str;
+	//str.Format(L"%d", dwPid);
+	//MessageBox(0,str,L"PID",0);
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwPid);
+	if (hProcess == NULL)
+	{
+		printf("OpenProcess Fail:%x\n", GetLastError());
+		return FALSE;
+	}
+	DWORD dwHandle = (DWORD)GetProcessModuleBaseAddress(dwPid, dllName);
 
+	HANDLE hRemoteThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)FreeLibrary, (LPVOID)dwHandle, 0, NULL);
+	if (hRemoteThread == 0)
+	{
+		printf("CreateRemoteThread()  ERROR_CODE=%x\n", GetLastError());
+		CloseHandle(hProcess);
+		return FALSE;
+	}
+	WaitForSingleObject(hRemoteThread, 2000);
+	CloseHandle(hProcess);
+	CloseHandle(hRemoteThread);
+	return TRUE;
+}
 
 DWORD GetProcessModuleBaseAddress(DWORD dwPid, const WCHAR ModuleName[MAX_MODULE_NAME32 + 1])
 {
@@ -175,6 +215,15 @@ const WCHAR* GetFileFullPath(const WCHAR* FileName)
 	}
 	return NULL;
 }
+
+
+
+//void DebugMsg(const WCHAR* a, int b, int c)
+//{
+//	CString str;
+//	str.Format(a, b, c);
+//	AfxMessageBox(str);
+//}
 
 void SetDebugConsole(PCWSTR ConsoleName)
 {
