@@ -15,10 +15,9 @@ int main()
 	//DWORD CurrentWindowThreadId = GetWindowThreadProcessId(FindMainWindow(dwPid), NULL);
 	//printf("%d\n", CurrentWindowThreadId);
 
-	//CDllInject::RemoteThreadInject(dwPid,"C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
-	CDllInject::ZwCreateThreadExInject(dwPid, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
-	//CDllInject::SetWindowsHookExInject(CurrentWindowThreadId, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
-	//CDllInject::QueueUserAPCInject(dwPid, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
+	DllInject::ZwCreateThreadExDllInject(dwPid, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
+	//DllInject::SetWindowsHookExInject(CurrentWindowThreadId, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
+	//DllInject::QueueUserAPCInject(dwPid, "C:\\Users\\Administrator\\Desktop\\Temp\\MessageBox.dll");
 
 	return 0;
 }

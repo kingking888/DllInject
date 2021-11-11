@@ -1,9 +1,8 @@
 #include "DllInject.h"
 
-
 #define DEBUG 1
 
-BOOL CDllInject::CreateRemoteThreadInject(DWORD dwPid,const char* pszFilePath)
+BOOL DllInject::CreateRemoteThreadDllInject(DWORD dwPid,const char* pszFilePath)
 {
 	HANDLE hProcess = NULL;
 	HANDLE hRemoteThread = NULL;
@@ -113,7 +112,7 @@ BOOL EnableDebugPriv(LPCWSTR name)
 	return true;
 }
 
-BOOL CDllInject::ZwCreateThreadExInject(DWORD dwPid, const char* pszFilePath)
+BOOL DllInject::ZwCreateThreadExDllInject(DWORD dwPid, const char* pszFilePath)
 {
 	HANDLE hProcess = NULL;
 	HANDLE hRemoteThread = NULL;
@@ -316,7 +315,7 @@ BOOL GetAllThreadIdByProcessId(DWORD dwProcessId, DWORD** ppThreadId, DWORD* pdw
 	return bRet;
 }
 
-BOOL CDllInject::QueueUserAPCInject(DWORD dwPid, const char* pszFilePath)
+BOOL DllInject::QueueUserAPCDllInject(DWORD dwPid, const char* pszFilePath)
 {
 	BOOL bRet = FALSE;
 	DWORD* pThreadId = NULL;
@@ -405,7 +404,7 @@ LRESULT HookCallbackProc(int code, WPARAM wParam, LPARAM lParam)
 	return CallNextHookEx(g_hHook, code, wParam, lParam);
 }
 
-BOOL CDllInject::SetWindowsHookExInject(DWORD CurrentWindowThreadId, const char* pszFilePath)
+BOOL DllInject::SetWindowsHookExDllInject(DWORD CurrentWindowThreadId, const char* pszFilePath)
 {
 	HMODULE hMod = NULL;
 	hMod = LoadLibraryA(pszFilePath);
